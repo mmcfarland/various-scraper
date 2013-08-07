@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -8,7 +9,10 @@ import (
 	"sync"
 )
 
-var concurrent = flag.Int("c", 1, "Number of concurrent requests allowed")
+var (
+	concurrent = flag.Int("c", 1, "Number of concurrent requests allowed")
+	filename   = flag.String("f", "", "Source json file of OPA ids")
+)
 
 var serviceUrl = "http://services.phila.gov/OPA/v1.0/account"
 
@@ -21,6 +25,8 @@ type Control struct {
 	op       string // "save", "kill"
 	resource *Resource
 }
+
+type Ids []int
 
 // Request and receive opa responses based on a list of account ids
 func get(n int, c chan *Control, ids []int) {
@@ -60,8 +66,19 @@ func save(n int, c chan *Control, wg *sync.WaitGroup) {
 
 func main() {
 	flag.Parse()
+	var f Ids
+	b, err := ioutil.ReadFile(*filename)
+	if err != nil {
+		fmt.Println("Couldn't read file", err)
+		return
+	}
+	err = json.Unmarshal(b, &f)
+	fmt.Println(f)
+	scrape(f)
+}
+
+func scrape(ids Ids) {
 	c := *concurrent
-	ids := []int{323265400, 101137900, 881173000, 213000750, 562313830, 332353300, 362307900, 786019725, 433370000}
 	cnt := cap(ids)
 	start := 0
 	span := cnt / c
