@@ -6,19 +6,23 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"os"
+	"path"
+	"strconv"
 	"sync"
 )
 
 var (
 	concurrent = flag.Int("c", 1, "Number of concurrent requests allowed")
 	filename   = flag.String("f", "", "Source json file of OPA ids")
+	saveDir, _ = ioutil.TempDir(".", "opa-downloads")
 )
 
 var serviceUrl = "http://services.phila.gov/OPA/v1.0/account"
 
 type Resource struct {
 	Id       int
-	Response interface{}
+	Response string
 }
 
 type Control struct {
@@ -59,7 +63,17 @@ func save(n int, c chan *Control, wg *sync.WaitGroup) {
 				wg.Done()
 				return
 			}
-			fmt.Println("save", n, control.resource.Id)
+			fn := path.Join(saveDir, strconv.Itoa(control.resource.Id)+".json")
+			f, err := os.Create(fn)
+			if err != nil {
+				fmt.Println(err)
+			}
+			_, err = f.Write([]byte(control.resource.Response))
+			if err != nil {
+				fmt.Println(err)
+			}
+			fmt.Println("wrote to ", f.Name())
+			f.Close()
 		}
 	}
 }
@@ -73,7 +87,6 @@ func main() {
 		return
 	}
 	err = json.Unmarshal(b, &f)
-	fmt.Println(f)
 	scrape(f)
 }
 
