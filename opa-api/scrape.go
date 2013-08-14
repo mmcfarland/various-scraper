@@ -74,7 +74,6 @@ func save(n int, cr chan *Control, csv chan *Resource, wg *sync.WaitGroup) {
 			if err != nil {
 				fmt.Println(err)
 			}
-			fmt.Println("wrote to ", f.Name())
 			f.Close()
 
 			csv <- control.resource
@@ -83,6 +82,11 @@ func save(n int, cr chan *Control, csv chan *Resource, wg *sync.WaitGroup) {
 }
 
 func writeRow(c chan *Resource, w *csv.Writer) {
+	propFields := []string{"property_id", "account_number", "full_address", "unit", "zip"}
+	ownerFields := []string{"name", "street", "city", "state", "zip"}
+	descFields := []string{"description", "beginning_point", "land_area", "improvement_area", "improvement_description", "exterior_condition", "zoning", "zoning_description", "building_code", "eq_id", "gma", "homestead"}
+	salesFields := []string{"sales_date", "sales_price", "sales_type"}
+
 	for {
 		select {
 		case res := <-c:
@@ -93,29 +97,61 @@ func writeRow(c chan *Resource, w *csv.Writer) {
 			}
 			j := f.(map[string]interface{})
 			if j["status"] != "success" {
-				fmt.Println(res.Response)
+				fmt.Println(res.Id, res.Response)
+				continue
 			}
-			r := make([]string, 5)
-			i := 0
+
 			d := j["data"].(map[string]interface{})
 			p := d["property"].(map[string]interface{})
-			for _, v := range p {
-				switch v.(type) {
-				case string:
-					r[i] = v.(string)
-					i++
-				case map[string]interface{}:
-					//fmt.Println(k + " is node")
-				}
-			}
-			fmt.Println(r)
-			err = w.Write(r)
+			own := p["ownership"].([]interface{})
+			desc := p["characteristics"].(map[string]interface{})
+			sale := p["sales_information"].(map[string]interface{})
+
+			rp := mapToSlice(p, propFields)
+			ro := mapToSlice(own[0].(map[string]interface{}), ownerFields)
+			rd := mapToSlice(desc, descFields)
+			rs := mapToSlice(sale, salesFields)
+
+			// Does it have to be this awful??
+			full := make([]string, len(rp)+len(ro)+len(rd)+len(rs))
+			copy(full, rp)
+			copy(full[len(rp):], ro)
+			copy(full[len(rp)+len(ro):], rd)
+			copy(full[len(rp)+len(ro)+len(rd):], rs)
+
+			err = w.Write(full)
 			if err != nil {
 				fmt.Println(err)
 			}
 			w.Flush()
 		}
 	}
+}
+
+func mapToSlice(m map[string]interface{}, fields []string) []string {
+	r := make([]string, len(fields))
+	i := 0
+	for _, field := range fields {
+		switch m[field].(type) {
+		case string:
+			r[i] = m[field].(string)
+		case int:
+			r[i] = strconv.Itoa(m[field].(int))
+		case float64:
+			r[i] = strconv.FormatFloat(m[field].(float64), 'g', -1, 64)
+		case bool:
+			r[i] = strconv.FormatBool(m[field].(bool))
+		case nil:
+			r[i] = ""
+		default:
+			r[i] = ""
+			fmt.Println("unknown type: ", field)
+		}
+
+		i++
+	}
+
+	return r
 }
 
 func main() {
