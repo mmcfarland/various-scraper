@@ -81,79 +81,6 @@ func save(n int, cr chan *Control, csv chan *Resource, wg *sync.WaitGroup) {
 	}
 }
 
-func writeRow(c chan *Resource, w *csv.Writer) {
-	propFields := []string{"property_id", "account_number", "full_address", "unit", "zip"}
-	ownerFields := []string{"name", "street", "city", "state", "zip"}
-	descFields := []string{"description", "beginning_point", "land_area", "improvement_area", "improvement_description", "exterior_condition", "zoning", "zoning_description", "building_code", "eq_id", "gma", "homestead"}
-	salesFields := []string{"sales_date", "sales_price", "sales_type"}
-
-	for {
-		select {
-		case res := <-c:
-			var f interface{}
-			err := json.Unmarshal([]byte(res.Response), &f)
-			if err != nil {
-				fmt.Println(err)
-			}
-			j := f.(map[string]interface{})
-			if j["status"] != "success" {
-				fmt.Println(res.Id, res.Response)
-				continue
-			}
-
-			d := j["data"].(map[string]interface{})
-			p := d["property"].(map[string]interface{})
-			own := p["ownership"].([]interface{})
-			desc := p["characteristics"].(map[string]interface{})
-			sale := p["sales_information"].(map[string]interface{})
-
-			rp := mapToSlice(p, propFields)
-			ro := mapToSlice(own[0].(map[string]interface{}), ownerFields)
-			rd := mapToSlice(desc, descFields)
-			rs := mapToSlice(sale, salesFields)
-
-			// Does it have to be this awful??
-			full := make([]string, len(rp)+len(ro)+len(rd)+len(rs))
-			copy(full, rp)
-			copy(full[len(rp):], ro)
-			copy(full[len(rp)+len(ro):], rd)
-			copy(full[len(rp)+len(ro)+len(rd):], rs)
-
-			err = w.Write(full)
-			if err != nil {
-				fmt.Println(err)
-			}
-			w.Flush()
-		}
-	}
-}
-
-func mapToSlice(m map[string]interface{}, fields []string) []string {
-	r := make([]string, len(fields))
-	i := 0
-	for _, field := range fields {
-		switch m[field].(type) {
-		case string:
-			r[i] = m[field].(string)
-		case int:
-			r[i] = strconv.Itoa(m[field].(int))
-		case float64:
-			r[i] = strconv.FormatFloat(m[field].(float64), 'g', -1, 64)
-		case bool:
-			r[i] = strconv.FormatBool(m[field].(bool))
-		case nil:
-			r[i] = ""
-		default:
-			r[i] = ""
-			fmt.Println("unknown type: ", field)
-		}
-
-		i++
-	}
-
-	return r
-}
-
 func main() {
 	flag.Parse()
 	var f Ids
@@ -173,16 +100,27 @@ func scrape(ids Ids) {
 	span := cnt / c
 	end := span
 
-	// Setup a csv output for each download
+	// Setup a csv output for the opa main and
+	// valuation (1-N) records
 	f, err := os.Create("opa.csv")
 	if err != nil {
 		panic(err)
 	}
+	fv, err := os.Create("opa-val.csv")
+	if err != nil {
+		panic(err)
+	}
+
 	defer f.Close()
+	defer fv.Close()
+
 	w := bufio.NewWriter(f)
-	csv := csv.NewWriter(w)
+	wv := bufio.NewWriter(fv)
+	csvo := csv.NewWriter(w)
+	csvv := csv.NewWriter(wv)
+
 	csvChan := make(chan *Resource, 100)
-	go writeRow(csvChan, csv)
+	go writeRow(csvChan, csvo, csvv)
 
 	var wg sync.WaitGroup
 	for i := 0; i < c; i++ {
@@ -209,5 +147,5 @@ func scrape(ids Ids) {
 		end = end + span
 	}
 	wg.Wait()
-	csv.Flush()
+	csvo.Flush()
 }
