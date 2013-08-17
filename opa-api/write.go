@@ -83,7 +83,7 @@ func mapToSlice(m map[string]interface{}, fields []string) []string {
 	r := make([]string, len(fields))
 	i := 0
 	stringOrDate := func(input string) string {
-		re := regexp.MustCompile("/Date\\((\\d*)-(\\d*)\\)")
+		re := regexp.MustCompile("/Date\\((-?\\d*)-(\\d*)\\)")
 		if re.MatchString(input) {
 			subs := re.FindStringSubmatch(input)
 			d, _ := time.ParseDuration("-4h")
