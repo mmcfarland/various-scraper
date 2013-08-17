@@ -119,6 +119,9 @@ func scrape(ids Ids) {
 	csvo := csv.NewWriter(w)
 	csvv := csv.NewWriter(wv)
 
+	defer csvo.Flush()
+	defer csvv.Flush()
+
 	csvChan := make(chan *Resource, 100)
 	go writeRow(csvChan, csvo, csvv)
 
@@ -147,6 +150,4 @@ func scrape(ids Ids) {
 		end = end + span
 	}
 	wg.Wait()
-	csvo.Flush()
-	csvv.Flush()
 }
