@@ -148,4 +148,5 @@ func scrape(ids Ids) {
 	}
 	wg.Wait()
 	csvo.Flush()
+	csvv.Flush()
 }
