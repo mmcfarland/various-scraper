@@ -4,7 +4,9 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"strconv"
+	"time"
 )
 
 func merge(s ...[]string) []string {
@@ -80,10 +82,25 @@ func writeValuation(opaid string, vv []interface{}, fields []string, w *csv.Writ
 func mapToSlice(m map[string]interface{}, fields []string) []string {
 	r := make([]string, len(fields))
 	i := 0
+	stringOrDate := func(input string) string {
+		re := regexp.MustCompile("/Date\\((\\d*)-(\\d*)\\)")
+		if re.MatchString(input) {
+			subs := re.FindStringSubmatch(input)
+			d, _ := time.ParseDuration("-4h")
+			msEpoch, err := strconv.Atoi(subs[1])
+			if err != nil {
+				return input
+			}
+			return time.Unix(int64(msEpoch/1000), 0).Add(d).Format("2006-01-02")
+		} else {
+			return input
+		}
+	}
+
 	for _, field := range fields {
 		switch m[field].(type) {
 		case string:
-			r[i] = m[field].(string)
+			r[i] = stringOrDate(m[field].(string))
 		case int:
 			r[i] = strconv.Itoa(m[field].(int))
 		case float64:
