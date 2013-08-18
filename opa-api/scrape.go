@@ -131,13 +131,13 @@ func scrape(ids Ids) {
 	defer csvv.Flush()
 
 	var wg sync.WaitGroup
-	csvChan := make(chan *Resource, 100)
+	csvChan := make(chan *Resource, 1000)
 	go writeRow(csvChan, csvo, csvv, &wg)
 
 	feedChan := make(chan int)
 
 	for i := 0; i < c; i++ {
-		ch := make(chan *Control, 10)
+		ch := make(chan *Control, 100)
 
 		// Wait until each channel has been killed
 		wg.Add(1)
