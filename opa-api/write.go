@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strconv"
+	"sync"
 	"time"
 )
 
@@ -17,7 +18,7 @@ func merge(s ...[]string) []string {
 	return full
 }
 
-func writeRow(c chan *Resource, w *csv.Writer, vw *csv.Writer) {
+func writeRow(c chan *Resource, w *csv.Writer, vw *csv.Writer, wg *sync.WaitGroup) {
 	propFields := []string{"property_id", "account_number", "full_address", "unit", "zip"}
 	ownerFields := []string{"name", "street", "city", "state", "zip"}
 	descFields := []string{"description", "beginning_point", "land_area", "improvement_area", "improvement_description", "exterior_condition", "zoning", "zoning_description", "building_code", "eq_id", "gma", "homestead"}
@@ -30,9 +31,15 @@ func writeRow(c chan *Resource, w *csv.Writer, vw *csv.Writer) {
 	w.Write(header)
 	vw.Write(append(valueFields, "opa_id"))
 
+	wg.Add(1)
+
 	for {
 		select {
 		case res := <-c:
+			if res.Id == killCode {
+				wg.Done()
+				return
+			}
 			var f interface{}
 			err := json.Unmarshal([]byte(res.Response), &f)
 			if err != nil {
@@ -63,7 +70,6 @@ func writeRow(c chan *Resource, w *csv.Writer, vw *csv.Writer) {
 			if err != nil {
 				fmt.Println(err)
 			}
-			w.Flush()
 
 			// Write out valuations to another csv
 			writeValuation(p["account_number"].(string), p["valuation_history"].([]interface{}),
